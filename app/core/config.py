@@ -16,6 +16,12 @@ class Settings(BaseSettings):
 
     qdrant_host: str = "qdrant"
     qdrant_port: int = 6333
+    qdrant_collection: str = "bbva_content"
+
+    embedding_model: str = "intfloat/multilingual-e5-small"
+
+    chunk_size: int = 700
+    chunk_overlap: int = 120
 
     model_config = SettingsConfigDict(
         env_file=".env",
