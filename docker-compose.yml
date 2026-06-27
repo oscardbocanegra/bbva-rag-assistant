@@ -10,6 +10,7 @@ services:
       - "8000:8000"
     volumes:
       - ./app:/app/app
+      - ./scripts:/app/scripts
       - ./data:/app/data
     depends_on:
       postgres:

@@ -24,3 +24,7 @@ data/processed/*
 # OS
 .DS_Store
 Thumbs.db
+
+# Local source snapshots
+data/source_snapshots/*
+!data/source_snapshots/.gitkeep
