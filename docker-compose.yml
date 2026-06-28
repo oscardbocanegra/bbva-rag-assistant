@@ -17,6 +17,8 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_started
+      ollama:
+        condition: service_started
     networks:
       - rag-network
 
@@ -32,7 +34,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -50,9 +56,20 @@ services:
     networks:
       - rag-network
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: bbva-rag-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - rag-network
+
 volumes:
   postgres_data:
   qdrant_data:
+  ollama_data:
 
 networks:
   rag-network:

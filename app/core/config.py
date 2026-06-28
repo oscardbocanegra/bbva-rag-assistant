@@ -30,6 +30,10 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    ollama_host: str = "http://ollama:11434"
+    ollama_model: str = "qwen2.5:3b"
+    ollama_timeout_seconds: int = 120
+
 
 @lru_cache
 def get_settings() -> Settings:
