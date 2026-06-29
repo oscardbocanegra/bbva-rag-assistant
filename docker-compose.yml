@@ -12,12 +12,30 @@ services:
       - ./app:/app/app
       - ./scripts:/app/scripts
       - ./data:/app/data
+      - ./tests:/app/tests
     depends_on:
       postgres:
         condition: service_healthy
       qdrant:
         condition: service_started
       ollama:
+        condition: service_started
+    networks:
+      - rag-network
+
+  ui:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ui
+    container_name: bbva-rag-ui
+    environment:
+      API_BASE_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./ui:/app/ui
+    depends_on:
+      api:
         condition: service_started
     networks:
       - rag-network
@@ -63,23 +81,6 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    networks:
-      - rag-network
-  
-  ui:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.ui
-    container_name: bbva-rag-ui
-    environment:
-      API_BASE_URL: http://api:8000
-    ports:
-      - "8501:8501"
-    volumes:
-      - ./ui:/app/ui
-    depends_on:
-      api:
-        condition: service_started
     networks:
       - rag-network
 

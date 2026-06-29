@@ -114,11 +114,21 @@ def chat(
         )
 
     except Exception as exc:
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        logger.exception(
+            "chat_generation_failed session_id=%s error=%s",
+            request.session_id,
+            str(exc),
+        )
+
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=(
-                "No fue posible generar una respuesta. "
-                f"Detalle técnico: {str(exc)}"
+                "No fue posible generar una respuesta en este momento. "
+                "Verifica que los servicios estén disponibles."
             ),
         ) from exc
 
