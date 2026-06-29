@@ -4,6 +4,7 @@ import os
 from typing import Any
 
 import httpx
+import pandas as pd
 import streamlit as st
 
 
@@ -36,23 +37,19 @@ def call_chat_api(message: str) -> dict[str, Any]:
             f"{API_BASE_URL}/api/v1/chat",
             json=payload,
         )
-
         response.raise_for_status()
 
         return response.json()
 
 
-def load_conversation_history(session_id: str) -> list[dict[str, Any]]:
+def get_api_data(endpoint: str) -> Any:
     with httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS) as client:
         response = client.get(
-            f"{API_BASE_URL}/api/v1/conversations/{session_id}"
+            f"{API_BASE_URL}{endpoint}"
         )
-
         response.raise_for_status()
 
-        data = response.json()
-
-    return data.get("messages", [])
+        return response.json()
 
 
 def start_new_conversation() -> None:
@@ -77,52 +74,7 @@ def render_sources(sources: list[dict[str, Any]]) -> None:
             )
 
 
-def main() -> None:
-    st.set_page_config(
-        page_title="BBVA RAG Assistant",
-        page_icon="💬",
-        layout="wide",
-    )
-
-    initialize_session_state()
-
-    st.title("BBVA RAG Assistant")
-    st.caption(
-        "Asistente conversacional basado en contenido institucional "
-        "de BBVA Colombia."
-    )
-
-    with st.sidebar:
-        st.header("Sesión")
-
-        if st.session_state.session_id:
-            st.success("Sesión activa")
-            st.code(st.session_state.session_id)
-        else:
-            st.info("Aún no hay una sesión activa.")
-
-        if st.button("Nueva conversación", use_container_width=True):
-            start_new_conversation()
-            st.rerun()
-
-        st.divider()
-
-        st.header("Estado")
-
-        try:
-            with httpx.Client(timeout=10) as client:
-                response = client.get(f"{API_BASE_URL}/health")
-
-            if response.status_code == 200:
-                st.success("API disponible")
-            else:
-                st.warning("API respondió con estado inesperado.")
-
-        except httpx.HTTPError:
-            st.error("No fue posible conectar con la API.")
-
-        st.caption(f"API: {API_BASE_URL}")
-
+def render_chat() -> None:
     for item in st.session_state.chat_messages:
         role = item["role"]
 
@@ -181,11 +133,9 @@ def main() -> None:
                 )
 
             except httpx.HTTPStatusError as exc:
-                error_detail = exc.response.text
-
                 st.error(
                     "La API respondió con un error. "
-                    f"Detalle: {error_detail}"
+                    f"Detalle: {exc.response.text}"
                 )
 
             except httpx.HTTPError as exc:
@@ -193,6 +143,181 @@ def main() -> None:
                     "No fue posible conectar con el servicio RAG. "
                     f"Detalle: {str(exc)}"
                 )
+
+
+def render_analytics() -> None:
+    st.subheader("Analítica conversacional")
+    st.caption(
+        "Métricas calculadas a partir del historial persistido "
+        "en PostgreSQL."
+    )
+
+    try:
+        summary = get_api_data("/api/v1/analytics/summary")
+        daily_activity = get_api_data("/api/v1/analytics/daily-activity")
+        recent_sessions = get_api_data("/api/v1/analytics/recent-sessions")
+        recent_questions = get_api_data("/api/v1/analytics/recent-questions")
+
+    except httpx.HTTPError as exc:
+        st.error(
+            "No fue posible cargar las métricas. "
+            f"Detalle: {str(exc)}"
+        )
+        return
+
+    metric_col_1, metric_col_2, metric_col_3, metric_col_4 = st.columns(4)
+
+    metric_col_1.metric(
+        "Sesiones",
+        summary.get("total_sessions", 0),
+    )
+
+    metric_col_2.metric(
+        "Preguntas",
+        summary.get("total_questions", 0),
+    )
+
+    metric_col_3.metric(
+        "Mensajes",
+        summary.get("total_messages", 0),
+    )
+
+    average_latency_ms = summary.get("average_latency_ms")
+
+    metric_col_4.metric(
+        "Latencia promedio",
+        f"{average_latency_ms:,.0f} ms"
+        if average_latency_ms is not None
+        else "N/A",
+    )
+
+    st.divider()
+
+    activity_col, performance_col = st.columns(2)
+
+    with activity_col:
+        st.markdown("### Actividad diaria")
+
+        if daily_activity:
+            activity_df = pd.DataFrame(daily_activity)
+            activity_df["date"] = pd.to_datetime(activity_df["date"])
+            activity_df = activity_df.set_index("date")
+
+            st.line_chart(
+                activity_df[
+                    [
+                        "questions",
+                        "answers",
+                    ]
+                ]
+            )
+        else:
+            st.info("Aún no hay actividad registrada.")
+
+    with performance_col:
+        st.markdown("### Indicadores operativos")
+
+        st.metric(
+            "Mensajes por sesión",
+            summary.get("average_messages_per_session", 0),
+        )
+
+        st.metric(
+            "Chunks recuperados",
+            summary.get("average_retrieved_chunks", 0),
+        )
+
+        st.metric(
+            "Respuestas generadas",
+            summary.get("total_answers", 0),
+        )
+
+    st.divider()
+
+    st.markdown("### Sesiones recientes")
+
+    if recent_sessions:
+        sessions_df = pd.DataFrame(recent_sessions)
+
+        st.dataframe(
+            sessions_df,
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.info("No hay sesiones registradas.")
+
+    st.markdown("### Preguntas recientes")
+
+    if recent_questions:
+        questions_df = pd.DataFrame(recent_questions)
+
+        st.dataframe(
+            questions_df,
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.info("No hay preguntas registradas.")
+
+
+def main() -> None:
+    st.set_page_config(
+        page_title="BBVA RAG Assistant",
+        page_icon="💬",
+        layout="wide",
+    )
+
+    initialize_session_state()
+
+    st.title("BBVA RAG Assistant")
+    st.caption(
+        "Asistente conversacional basado en contenido institucional "
+        "de BBVA Colombia."
+    )
+
+    with st.sidebar:
+        st.header("Sesión")
+
+        if st.session_state.session_id:
+            st.success("Sesión activa")
+            st.code(st.session_state.session_id)
+        else:
+            st.info("Aún no hay una sesión activa.")
+
+        if st.button("Nueva conversación", use_container_width=True):
+            start_new_conversation()
+            st.rerun()
+
+        st.divider()
+
+        st.header("Estado")
+
+        try:
+            health_data = get_api_data("/health")
+
+            if health_data.get("status") == "ok":
+                st.success("API disponible")
+            else:
+                st.warning("La API respondió con estado inesperado.")
+
+        except httpx.HTTPError:
+            st.error("No fue posible conectar con la API.")
+
+        st.caption(f"API: {API_BASE_URL}")
+
+    chat_tab, analytics_tab = st.tabs(
+        [
+            "Chat",
+            "Analítica",
+        ]
+    )
+
+    with chat_tab:
+        render_chat()
+
+    with analytics_tab:
+        render_analytics()
 
 
 if __name__ == "__main__":
