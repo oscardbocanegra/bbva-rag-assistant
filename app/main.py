@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.api.routes_chat import router as chat_router
 from app.core.config import get_settings
+from app.analytics.routes_analytics import router as analytics_router
 
 settings = get_settings()
 
@@ -17,6 +18,7 @@ app = FastAPI(
 )
 
 app.include_router(chat_router)
+app.include_router(analytics_router)
 
 
 @app.get("/", tags=["Health"])
