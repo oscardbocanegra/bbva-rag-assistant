@@ -16,7 +16,8 @@ class RAGAnswer:
 
 class RAGService:
     """
-    Orquesta recuperación semántica y generación grounded con Ollama.
+    Orquesta recuperación semántica, memoria conversacional
+    y generación grounded con Ollama.
     """
 
     def __init__(
@@ -29,7 +30,11 @@ class RAGService:
         self.llm_client = llm_client
         self.top_k = top_k
 
-    def answer_question(self, question: str) -> RAGAnswer:
+    def answer_question(
+        self,
+        question: str,
+        conversation_history: list[dict[str, str]] | None = None,
+    ) -> RAGAnswer:
         chunks = self.retriever.retrieve(
             query=question,
             limit=self.top_k,
@@ -48,25 +53,33 @@ class RAGService:
 
         context = self._build_context(chunks)
 
-        messages = [
-            {
-                "role": "system",
-                "content": (
-                    "Eres un asistente interno de BBVA Colombia. "
-                    "Responde únicamente con base en el contexto suministrado. "
-                    "No inventes productos, condiciones, cifras ni políticas. "
-                    "Si el contexto no contiene evidencia suficiente, dilo claramente. "
-                    "Responde en español de forma clara y concisa."
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"Contexto recuperado:\n\n{context}\n\n"
-                    f"Pregunta del usuario: {question}"
-                ),
-            },
-        ]
+        system_message = {
+            "role": "system",
+            "content": (
+                "Eres un asistente interno de BBVA Colombia. "
+                "Responde únicamente con base en el contexto suministrado. "
+                "No inventes productos, condiciones, cifras ni políticas. "
+                "Si el contexto no contiene evidencia suficiente, dilo claramente. "
+                "Usa el historial conversacional solo para comprender referencias "
+                "como 'eso', 'lo anterior' o 'esa opción'. "
+                "Responde en español de forma clara y concisa."
+            ),
+        }
+
+        context_message = {
+            "role": "user",
+            "content": (
+                f"Contexto recuperado:\n\n{context}\n\n"
+                f"Pregunta actual del usuario: {question}"
+            ),
+        }
+
+        messages = [system_message]
+
+        if conversation_history:
+            messages.extend(conversation_history)
+
+        messages.append(context_message)
 
         response = self.llm_client.chat(messages)
 

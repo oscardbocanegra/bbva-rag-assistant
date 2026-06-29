@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     ollama_model: str = "qwen2.5:3b"
     ollama_timeout_seconds: int = 120
 
+    conversation_memory_messages: int = 6
+
 
 @lru_cache
 def get_settings() -> Settings:
