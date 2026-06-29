@@ -119,3 +119,15 @@ class ConversationRepository:
             .scalars()
             .all()
         )
+    
+    def get_session(
+        self,
+        session_id: uuid.UUID,
+    ) -> ConversationSession | None:
+        """
+        Busca una sesión existente por su UUID.
+        """
+        return self.session.get(
+            ConversationSession,
+            session_id,
+        )
